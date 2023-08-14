@@ -127,7 +127,7 @@ void tsafe_increment() {
 }
 
 void tsafe_write(FILE* output, char* hostname, char* ip) {
-    sem_wait(&c_sem);
+    sem_wait(&w_sem);
     fprintf(output, "%d.%s,%s\n", counter, hostname, ip);
-    sem_post(&c_sem);
+    sem_post(&w_sem);
 }
