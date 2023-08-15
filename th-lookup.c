@@ -14,7 +14,7 @@
 #define SBUFSIZE 1025
 #define INPUTFS "%1024s"
 #define MAX_REQUESTER_THREADS 2
-#define MAX_RESOLVER_THREADS 10
+#define MAX_RESOLVER_THREADS 5
 
 /* Declare global variables */
 sem_t q_sem;
@@ -83,7 +83,9 @@ void* request(void* input) {
             tsafe_queue_push(&q, buffer);
             printf("%s\n", buffer);
         }
-        usleep((rand()%100));
+        else {
+            usleep((rand()%100));
+        }
     }
     fclose(ifp);
     return NULL;
