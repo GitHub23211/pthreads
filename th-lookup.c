@@ -13,85 +13,90 @@
 #define QUEUESIZE 10
 #define SBUFSIZE 1025
 #define INPUTFS "%1024s"
-#define MAX_THREADS 4
+#define MAX_REQUESTER_THREADS 2
+#define MAX_RESOLVER_THREADS 10
 
+/* Declare global variables */
 sem_t q_sem;
 sem_t c_sem;
 sem_t w_sem;
-
-int counter = 0;
+queue q;
+int counter;
 
 int main(int argc, char** argv) {
-    FILE* input = NULL;
-    FILE* output = NULL;
-    pthread_t requesters[MAX_THREADS];
-    pthread_t resolvers[MAX_THREADS];
-    req_arguments req_args;
 
-    input = fopen(argv[1], "r");
-    output = fopen(argv[2], "w");
-
-    queue q;
+    /* Error checking before initialising variables*/
+    int num_input = argc - 2;
+    pthread_t requesters[MAX_REQUESTER_THREADS];
+    pthread_t resolvers[MAX_RESOLVER_THREADS];
+    FILE* input_files[num_input];
     queue_init(&q, QUEUESIZE);
     sem_init(&q_sem, 0, 1);
     sem_init(&c_sem, 0, 1);
     sem_init(&w_sem, 0, 1);
 
-    req_args.qp = &q;
-    req_args.ifp = input;
-    req_args.ofp = output;
-    req_arguments* strp = &req_args;
+    FILE* output = fopen(argv[argc-1], "w");
 
-    for(int i = 0; i < MAX_THREADS; i++) {
-        int reqt_err = pthread_create(&(requesters[i]), NULL, request, (void*)strp);
-        int rest_err = pthread_create(&(resolvers[i]), NULL, resolve, (void*)strp);
-        printf("Creating threads: %d\n", i);
-        if (reqt_err || rest_err){
-            printf("ERROR; return code from pthread_create() is %d\n", reqt_err);
-            printf("ERROR; return code from pthread_create() is %d\n", rest_err);
+    /* Initialise one requester thread per input file*/
+    for(int i = 0; i < num_input; i++) {
+        input_files[i] = fopen(argv[i+1], "r");
+        int err = pthread_create(&(requesters[i]), NULL, request, input_files[i]);
+        printf("Creating requester threads: %d\n", i);
+        if (err){
+            printf("ERROR; return code from pthread_create() is %d\n", err);
             exit(2);
 	    }
     }
 
-    for(int t=0;t<MAX_THREADS;t++){
+    /* Initialise all resolver threads */
+    for(int j = 0; j < MAX_RESOLVER_THREADS; j++) {
+        printf("Creating resolver threads: %d\n", j);
+        int err = pthread_create(&(resolvers[j]), NULL, resolve, (void*)output);
+        if (err){
+            printf("ERROR; return code from pthread_create() is %d\n", err);
+            exit(2);
+	    }
+    }
+
+    /* Gather threads */
+    for(int t=0;t<num_input;t++){
 	    pthread_join(requesters[t],NULL);
+    }
+    for(int t=0;t<MAX_REQUESTER_THREADS;t++){
         pthread_join(resolvers[t],NULL);
     }
     printf("All of the threads were completed! Counter is: %d\n", counter);
 
+    /* Clean up */
     queue_cleanup(&q);
-    fclose(input);
     fclose(output);
-
     return 0;
 }
 
-void* request(void* args) {
+void* request(void* input) {
     char buffer[SBUFSIZE];
-    req_arguments* rargs = args;
-    FILE* input = rargs->ifp;
-    queue* q = rargs->qp;
+    FILE* ifp = (FILE*)input;
 
-    while(!feof(input)) {
-        if(!queue_is_full(q)) {
-            fscanf(input, INPUTFS, buffer);
-            tsafe_queue_push(q, buffer);
+    while(!feof(ifp)) {
+        if(!queue_is_full(&q)) {
+            fscanf(ifp, INPUTFS, buffer);
+            tsafe_queue_push(&q, buffer);
             printf("%s\n", buffer);
         }
         usleep((rand()%100));
     }
+    fclose(ifp);
     return NULL;
 }
 
-void* resolve(void* args) {
+void* resolve(void* output) {
     char* temp;
-    req_arguments* rargs = args;
-    FILE* output = rargs->ofp;
-    queue* q = rargs->qp;
+    FILE* ofp = (FILE*)output;
     char firstipstr[INET6_ADDRSTRLEN];
+    int c = 0;
 
-    while(!queue_is_empty(q)) {
-        temp = tsafe_queue_pop(q);
+    while(!queue_is_empty(&q)) {
+        temp = tsafe_queue_pop(&q);
         printf("contents: %s\n", temp);
         if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
             strncpy(firstipstr, "", sizeof(firstipstr));
@@ -103,8 +108,10 @@ void* resolve(void* args) {
             fprintf(output, "%d.%s,%s\n", counter, temp, firstipstr);
         }
         free(temp);
+        temp = NULL;
+        c++;
     }
-    temp = NULL;
+    printf("resolver thread ended! count of resolves: %d\n", c);
 }
 
 void tsafe_queue_push(queue* q, char* buffer) {
