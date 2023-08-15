@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "./sample/queue.h"
+
 void* request(void* input);
 void* resolve(void* output);
 void tsafe_queue_push(queue* q, char* buffer);
