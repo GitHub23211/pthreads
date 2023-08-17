@@ -19,8 +19,8 @@
 /* Declare global variables */
 sem_t q_sem;
 sem_t c_sem;
-sem_t push_sem;
 sem_t w_sem;
+sem_t push_sem;
 
 queue q;
 int counter;
@@ -29,6 +29,8 @@ int pushers;
 int main(int argc, char** argv) {
 
     /* Error checking before initialising variables*/
+
+    /* Variable initialisation*/
     int num_input = argc - 2;
     pthread_t requesters[num_input];
     pthread_t resolvers[MAX_RESOLVER_THREADS];
@@ -36,11 +38,10 @@ int main(int argc, char** argv) {
     queue_init(&q, QUEUESIZE);
     sem_init(&q_sem, 0, 1);
     sem_init(&c_sem, 0, 1);
-    sem_init(&push_sem, 0, 1);
     sem_init(&w_sem, 0, 1);
+    sem_init(&push_sem, 0, 1);
     counter = 0;
     pushers = 0;
-
     FILE* output = fopen(argv[argc-1], "w");
 
     /* Initialise one requester thread per input file*/
@@ -71,6 +72,7 @@ int main(int argc, char** argv) {
     for(int t=0;t<MAX_RESOLVER_THREADS;t++){
         int res = pthread_join(resolvers[t],NULL);
     }
+
     printf("All of the threads were completed! Counter is: %d\n", counter);
 
     /* Clean up */
@@ -86,7 +88,6 @@ int main(int argc, char** argv) {
 void* request(void* input) {
     char buffer[SBUFSIZE];
     FILE* ifp = (FILE*)input;
-
 
     tsafe_add_pusher();
     while(!feof(ifp)) {
@@ -109,7 +110,6 @@ void* resolve(void* output) {
     char firstipstr[INET6_ADDRSTRLEN];
 
     while((temp = tsafe_queue_pop(&q)) != NULL|| pushers > 0) {
-        //printf("resolver temp: %s\n", temp);
         if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
             fprintf(stderr, "dnslookup error: %s\n", temp);
             strncpy(firstipstr, "", sizeof(firstipstr));
