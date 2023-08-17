@@ -4,7 +4,7 @@
 
 void* request(void* input);
 void* resolve(void* output);
-void tsafe_queue_push(queue* q, void* p);
+int tsafe_queue_push(queue* q, void* p);
 char* tsafe_queue_pop(queue* q);
 void tsafe_write(FILE* output, char* hostname, char* ip);
 void tsafe_increment();

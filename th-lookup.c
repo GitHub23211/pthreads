@@ -72,7 +72,6 @@ int main(int argc, char** argv) {
         int res = pthread_join(resolvers[t],NULL);
     }
     printf("All of the threads were completed! Counter is: %d\n", counter);
-    printf("is queue empty? %d\n", queue_is_empty(&q));
 
     /* Clean up */
     queue_cleanup(&q);
@@ -87,24 +86,20 @@ int main(int argc, char** argv) {
 void* request(void* input) {
     char buffer[SBUFSIZE];
     FILE* ifp = (FILE*)input;
-    int c = 0;
+
 
     tsafe_add_pusher();
     while(!feof(ifp)) {
-        if(!tsafe_queue_full(&q)) {
-            int res = fscanf(ifp, INPUTFS, buffer);
-            if(res >= 0) {
-                c++;
-                tsafe_queue_push(&q, strcpy((char*)malloc(SBUFSIZE), buffer));
+        int res = fscanf(ifp, INPUTFS, buffer);
+        if(res >= 0) {
+            char* temp = (char*)malloc(SBUFSIZE);
+            while(tsafe_queue_push(&q, strcpy(temp, buffer)) == QUEUE_FAILURE) {
+                usleep((rand()%100));
             }
-        }
-        else {
-            usleep((rand()%100));
         }
     }
     fclose(ifp);
     tsafe_decerement_pusher();
-    printf("requester done, request count: %d!\n", c);
     return NULL;
 }
 
@@ -113,30 +108,28 @@ void* resolve(void* output) {
     FILE* ofp = (FILE*)output;
     char firstipstr[INET6_ADDRSTRLEN];
 
-    while(!tsafe_queue_empty(&q) || pushers > 0) {
-        temp = tsafe_queue_pop(&q);
-        if(temp != NULL) {
-            //printf("resolver temp: %s\n", temp);
-            if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
-                fprintf(stderr, "dnslookup error: %s\n", temp);
-                strncpy(firstipstr, "", sizeof(firstipstr));
-                tsafe_write(output, temp, firstipstr);
-            }
-            else {
-                tsafe_write(output, temp, firstipstr);
-                tsafe_increment();
-            }
-            free(temp);
+    while((temp = tsafe_queue_pop(&q)) != NULL|| pushers > 0) {
+        //printf("resolver temp: %s\n", temp);
+        if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
+            fprintf(stderr, "dnslookup error: %s\n", temp);
+            strncpy(firstipstr, "", sizeof(firstipstr));
+            tsafe_write(output, temp, firstipstr);
         }
+        else {
+            tsafe_write(output, temp, firstipstr);
+            tsafe_increment();
+        }
+        free(temp);  
     }
     temp = NULL;
     return NULL;
 }
 
-void tsafe_queue_push(queue* q, void* p) {
+int tsafe_queue_push(queue* q, void* p) {
     sem_wait(&q_sem);
-    queue_push(q, p);
+    int res = queue_push(q, p);
     sem_post(&q_sem);
+    return res;
 }
 
 char* tsafe_queue_pop(queue* q) {
@@ -144,22 +137,6 @@ char* tsafe_queue_pop(queue* q) {
     char* hostname = (char*)queue_pop(q);
     sem_post(&q_sem);
     return hostname;
-}
-
-int tsafe_queue_full(queue* q) {
-    int bool = 0;
-    sem_wait(&q_sem);
-    bool = queue_is_full(q);
-    sem_post(&q_sem);
-    return bool;
-}
-
-int tsafe_queue_empty(queue* q) {
-    int bool = 0;
-    sem_wait(&q_sem);
-    bool = queue_is_empty(q);
-    sem_post(&q_sem);
-    return bool;
 }
 
 void tsafe_increment() {
