@@ -113,7 +113,7 @@ void* resolve(void* output) {
         if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
             fprintf(stderr, "dnslookup error: %s\n", temp);
             strncpy(firstipstr, "", sizeof(firstipstr));
-            tsafe_write(output, temp, firstipstr);
+            tsafe_write_error(output, temp, firstipstr);
         }
         else {
             tsafe_write(output, temp, firstipstr);
@@ -160,5 +160,11 @@ void tsafe_decerement_pusher() {
 void tsafe_write(FILE* output, char* hostname, char* ip) {
     sem_wait(&w_sem);
     fprintf(output, "%d. %s,%s\n", counter, hostname, ip);
+    sem_post(&w_sem);
+}
+
+void tsafe_write_error(FILE* output, char* hostname, char* ip) {
+    sem_wait(&w_sem);
+    fprintf(output, "%s,%s\n", hostname, ip);
     sem_post(&w_sem);
 }

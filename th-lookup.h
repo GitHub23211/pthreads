@@ -7,6 +7,7 @@ void* resolve(void* output);
 int tsafe_queue_push(queue* q, void* p);
 char* tsafe_queue_pop(queue* q);
 void tsafe_write(FILE* output, char* hostname, char* ip);
+void tsafe_write_error(FILE* output, char* hostname, char* ip);
 void tsafe_increment();
 void tsafe_add_pusher();
 void tsafe_decerement_pusher();
