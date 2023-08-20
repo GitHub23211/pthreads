@@ -6,15 +6,8 @@
 #include <unistd.h>
 
 #include "th-lookup.h"
-#include "./sample/queue.h"
-#include "./sample/util.h"
-
-#define MINARGS 2
-#define QUEUESIZE 10
-#define SBUFSIZE 1025
-#define INPUTFS "%1024s"
-#define MAX_REQUESTER_THREADS 2
-#define MAX_RESOLVER_THREADS 10
+#include "util.h"
+#include "queue.h"
 
 /* Declare global variables */
 sem_t q_sem;
@@ -29,6 +22,12 @@ int pushers;
 int main(int argc, char** argv) {
 
     /* Error checking before initialising variables*/
+    if(argc < MIN_ARGS) {
+        print_error(MIN_ARG_ERR);
+    }
+    else if(argc > MAX_ARGS) {
+        print_error(MAX_ARG_ERR);
+    }
 
     /* Variable initialisation*/
     int num_input = argc - 2;
@@ -47,8 +46,8 @@ int main(int argc, char** argv) {
     /* Initialise one requester thread per input file*/
     for(int i = 0; i < num_input; i++) {
         input_files[i] = fopen(argv[i+1], "r");
-        int err = pthread_create(&(requesters[i]), NULL, request, input_files[i]);
         printf("Creating requester threads: %d\n", i);
+        int err = pthread_create(&(requesters[i]), NULL, request, input_files[i]);
         if (err){
             printf("ERROR; return code from pthread_create() is %d\n", err);
             exit(2);
@@ -65,7 +64,7 @@ int main(int argc, char** argv) {
 	    }
     }
 
-    /* Gather threads */
+    /* Join threads */
     for(int t=0;t<num_input;t++){
 	    int res = pthread_join(requesters[t],NULL);
     }
@@ -168,3 +167,25 @@ void tsafe_write_error(FILE* output, char* hostname, char* ip) {
     fprintf(output, "%s,%s\n", hostname, ip);
     sem_post(&w_sem);
 }
+
+void print_error(int err) {
+    switch(err) {
+        case MIN_ARG_ERR:
+        //
+        exit(1)
+        break;
+        case MAX_ARG_ERR:
+        //
+        exit(1);
+        break;
+        case INFILE_ERR:
+        //
+        break;
+        case OUTFILE_ERR:
+        //
+        break;
+        default:
+        //
+    }
+}
+
