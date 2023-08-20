@@ -13,11 +13,11 @@
 sem_t q_sem;
 sem_t c_sem;
 sem_t w_sem;
-sem_t push_sem;
+sem_t req_sem;
 
 queue q;
 int counter;
-int pushers;
+int req_count;
 
 int main(int argc, char** argv) {
 
@@ -38,9 +38,9 @@ int main(int argc, char** argv) {
     sem_init(&q_sem, 0, 1);
     sem_init(&c_sem, 0, 1);
     sem_init(&w_sem, 0, 1);
-    sem_init(&push_sem, 0, 1);
+    sem_init(&req_sem, 0, 1);
     counter = 0;
-    pushers = 0;
+    req_count = 0;
     FILE* output = fopen(argv[argc-1], "w");
 
     /* Initialise one requester thread per input file*/
@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
     sem_destroy(&q_sem);
     sem_destroy(&c_sem);
     sem_destroy(&w_sem);
-    sem_destroy(&push_sem);
+    sem_destroy(&req_sem);
     return 0;
 }
 
@@ -108,17 +108,19 @@ void* resolve(void* output) {
     FILE* ofp = (FILE*)output;
     char firstipstr[INET6_ADDRSTRLEN];
 
-    while((temp = tsafe_queue_pop(&q)) != NULL|| pushers > 0) {
-        if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
-            fprintf(stderr, "dnslookup error: %s\n", temp);
-            strncpy(firstipstr, "", sizeof(firstipstr));
-            tsafe_write_error(output, temp, firstipstr);
+    while((temp = tsafe_queue_pop(&q)) != NULL|| req_count > 0) {
+        if(temp) {
+            if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
+                fprintf(stderr, "dnslookup error: %s\n", temp);
+                strncpy(firstipstr, "", sizeof(firstipstr));
+                tsafe_write_error(output, temp, firstipstr);
+            }
+            else {
+                tsafe_write(output, temp, firstipstr);
+                tsafe_increment();
+            }
+            free(temp);  
         }
-        else {
-            tsafe_write(output, temp, firstipstr);
-            tsafe_increment();
-        }
-        free(temp);  
     }
     temp = NULL;
     return NULL;
@@ -145,15 +147,15 @@ void tsafe_increment() {
 }
 
 void tsafe_add_pusher() {
-    sem_wait(&push_sem);
-    pushers++;
-    sem_post(&push_sem);
+    sem_wait(&req_sem);
+    req_count++;
+    sem_post(&req_sem);
 }
 
 void tsafe_decerement_pusher() {
-    sem_wait(&push_sem);
-    pushers--;
-    sem_post(&push_sem);
+    sem_wait(&req_sem);
+    req_count--;
+    sem_post(&req_sem);
 }
 
 void tsafe_write(FILE* output, char* hostname, char* ip) {
