@@ -21,13 +21,13 @@ int req_count;
 
 int main(int argc, char** argv) {
 
-    /* Error checking before initialising variables*/
+    /* Error checking before initialising variables
     if(argc < MIN_ARGS) {
         print_error(MIN_ARG_ERR);
     }
     else if(argc > MAX_ARGS) {
         print_error(MAX_ARG_ERR);
-    }
+    }*/
 
     /* Variable initialisation*/
     int num_input = argc - 2;
@@ -169,7 +169,7 @@ void tsafe_write_error(FILE* output, char* hostname, char* ip) {
     fprintf(output, "%s,%s\n", hostname, ip);
     sem_post(&w_sem);
 }
-
+/*
 void print_error(int err) {
     switch(err) {
         case MIN_ARG_ERR:
@@ -190,4 +190,4 @@ void print_error(int err) {
         //
     }
 }
-
+*/

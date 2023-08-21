@@ -5,6 +5,8 @@
 #define MIN_ARGS 2
 #define MAX_ARGS 10
 #define QUEUESIZE 10
+#define SBUFSIZE 1025
+#define INPUTFS "%1024s"
 #define MAX_RESOLVER_THREADS 10
 
 /* Error codes */
