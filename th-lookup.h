@@ -2,18 +2,12 @@
 
 #include "queue.h"
 
-#define MIN_ARGS 2
-#define MAX_ARGS 10
+#define MIN_ARGS 3
+#define MAX_ARGS 11
 #define QUEUESIZE 10
 #define SBUFSIZE 1025
 #define INPUTFS "%1024s"
 #define MAX_RESOLVER_THREADS 10
-
-/* Error codes */
-#define MIN_ARG_ERR 1
-#define MAX_ARG_ERR 2
-#define INFILE_ERR 3
-#define OUTFILE_ERR 4
 
 void* request(void* input);
 void* resolve(void* output);

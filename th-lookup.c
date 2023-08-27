@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <semaphore.h>
 #include <pthread.h>
-#include <unistd.h>
+
 
 #include "th-lookup.h"
 #include "util.h"
@@ -21,58 +22,87 @@ int req_count;
 
 int main(int argc, char** argv) {
 
-    /* Error checking before initialising variables
+    /* Error checking before initialising variables */
     if(argc < MIN_ARGS) {
-        print_error(MIN_ARG_ERR);
+        fprintf(stderr, 
+            "ERROR: Not enough arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 9 input files, and 1 output file\n"
+            ,argc);
+        exit(1);
     }
     else if(argc > MAX_ARGS) {
-        print_error(MAX_ARG_ERR);
-    }*/
+        fprintf(stderr, 
+            "ERROR: Too many arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 9 input files, and 1 output file\n"
+            ,argc);
+        exit(1);
+    }
 
-    /* Variable initialisation*/
+    /* Open output file then check for error */
+    FILE* output = fopen(argv[argc-1], "w");
+    if(!output) {
+        fprintf(stderr, "ERROR: Cannot access output file\n");
+        exit(1);
+    }
+
+    /* Rest of initialisation*/   
     int num_input = argc - 2;
+
     pthread_t requesters[num_input];
     pthread_t resolvers[MAX_RESOLVER_THREADS];
+
     FILE* input_files[num_input];
-    queue_init(&q, QUEUESIZE);
+
+    counter = 0;
+    req_count = 0;
+
     sem_init(&q_sem, 0, 1);
     sem_init(&c_sem, 0, 1);
     sem_init(&w_sem, 0, 1);
     sem_init(&req_sem, 0, 1);
-    counter = 0;
-    req_count = 0;
-    FILE* output = fopen(argv[argc-1], "w");
+
+    queue_init(&q, QUEUESIZE);
 
     /* Initialise one requester thread per input file*/
-    for(int i = 0; i < num_input; i++) {
-        input_files[i] = fopen(argv[i+1], "r");
-        printf("Creating requester threads: %d\n", i);
-        int err = pthread_create(&(requesters[i]), NULL, request, input_files[i]);
-        if (err){
-            printf("ERROR; return code from pthread_create() is %d\n", err);
-            exit(2);
-	    }
+
+    int t = 0;
+    for(int i = 1; i <= num_input; i++) {
+        input_files[t] = fopen(argv[i], "r");
+        if(input_files[t]) {
+            printf("Creating requester threads: %d\n", t);
+            int err = pthread_create(&(requesters[t]), NULL, request, input_files[t]);
+            if (err){
+                printf("ERROR; return code from pthread_create() is %d\n", err);
+                exit(2);
+            }
+            t++;
+        }
+        else {
+             fprintf(stderr, "ERROR: Cannot find or access input file: %s. Continuing...\n", argv[i]);
+        }
     }
 
-    /* Initialise all resolver threads */
-    for(int j = 0; j < MAX_RESOLVER_THREADS; j++) {
-        printf("Creating resolver threads: %d\n", j);
-        int err = pthread_create(&(resolvers[j]), NULL, resolve, (void*)output);
-        if (err){
-            printf("ERROR; return code from pthread_create() is %d\n", err);
-            exit(2);
-	    }
-    }
+    if(t > 0) {
+        /* Initialise all resolver threads */
+        for(int j = 0; j < MAX_RESOLVER_THREADS; j++) {
+            printf("Creating resolver threads: %d\n", j);
+            int err = pthread_create(&(resolvers[j]), NULL, resolve, (void*)output);
+            if (err){
+                printf("ERROR; return code from pthread_create() is %d\n", err);
+                exit(2);
+            }
+        }
 
-    /* Join threads */
-    for(int t=0;t<num_input;t++){
-	    int res = pthread_join(requesters[t],NULL);
+        /* Join threads */
+        for(int i = 0; i < t; i++){
+            pthread_join(requesters[i],NULL);
+        }
+        for(int j = 0; j < MAX_RESOLVER_THREADS; j++){
+            pthread_join(resolvers[j],NULL);
+        }
+        printf("All of the threads were completed! Counter is: %d\n", counter);
     }
-    for(int t=0;t<MAX_RESOLVER_THREADS;t++){
-        int res = pthread_join(resolvers[t],NULL);
+    else {
+        fprintf(stderr, "ERROR: No valid input files. Program did not run. Cleaning up initialised variables...\n");        
     }
-
-    printf("All of the threads were completed! Counter is: %d\n", counter);
 
     /* Clean up */
     queue_cleanup(&q);
@@ -113,10 +143,10 @@ void* resolve(void* output) {
             if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
                 fprintf(stderr, "dnslookup error: %s\n", temp);
                 strncpy(firstipstr, "", sizeof(firstipstr));
-                tsafe_write_error(output, temp, firstipstr);
+                tsafe_write_error(ofp, temp, firstipstr);
             }
             else {
-                tsafe_write(output, temp, firstipstr);
+                tsafe_write(ofp, temp, firstipstr);
                 tsafe_increment();
             }
             free(temp);  
@@ -169,25 +199,3 @@ void tsafe_write_error(FILE* output, char* hostname, char* ip) {
     fprintf(output, "%s,%s\n", hostname, ip);
     sem_post(&w_sem);
 }
-/*
-void print_error(int err) {
-    switch(err) {
-        case MIN_ARG_ERR:
-        //
-        exit(1)
-        break;
-        case MAX_ARG_ERR:
-        //
-        exit(1);
-        break;
-        case INFILE_ERR:
-        //
-        break;
-        case OUTFILE_ERR:
-        //
-        break;
-        default:
-        //
-    }
-}
-*/
