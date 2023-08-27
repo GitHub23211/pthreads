@@ -26,24 +26,24 @@ int main(int argc, char** argv) {
     if(argc < MIN_ARGS) {
         fprintf(stderr, 
             "ERROR: Not enough arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 9 input files, and 1 output file\n"
-            ,argc);
+            ,argc - 1);
         exit(1);
     }
     else if(argc > MAX_ARGS) {
         fprintf(stderr, 
             "ERROR: Too many arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 9 input files, and 1 output file\n"
-            ,argc);
+            ,argc - 1);
         exit(1);
     }
 
-    /* Open output file then check for error */
+    /* Check for valid output file */
     FILE* output = fopen(argv[argc-1], "w");
     if(!output) {
         fprintf(stderr, "ERROR: Cannot access output file\n");
         exit(1);
     }
 
-    /* Rest of initialisation*/   
+    /* Initialisation*/   
     int num_input = argc - 2;
 
     pthread_t requesters[num_input];
@@ -62,7 +62,6 @@ int main(int argc, char** argv) {
     queue_init(&q, QUEUESIZE);
 
     /* Initialise one requester thread per input file*/
-
     int t = 0;
     for(int i = 1; i <= num_input; i++) {
         input_files[t] = fopen(argv[i], "r");
@@ -98,7 +97,7 @@ int main(int argc, char** argv) {
         for(int j = 0; j < MAX_RESOLVER_THREADS; j++){
             pthread_join(resolvers[j],NULL);
         }
-        printf("All of the threads were completed! Counter is: %d\n", counter);
+        printf("All threads completed! Counter is: %d\n", counter);
     }
     else {
         fprintf(stderr, "ERROR: No valid input files. Program did not run. Cleaning up initialised variables...\n");        
