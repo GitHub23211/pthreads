@@ -11,4 +11,3 @@ th-lookup: $(OBJ) $(DEPS)
 clean:
 	rm -f th-lookup
 	rm -f *.o
-	rm -f results.txt
