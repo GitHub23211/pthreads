@@ -19,11 +19,11 @@ make
 ```
 in the terminal.
 
-Run
+When no longer needed, run
 ```
 make clean
 ```
-to remove outputs created by the makefile.
+to remove outputs created by the makefile (.o files and executables).
 
 ## How to Run
 In a terminal, execute
