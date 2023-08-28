@@ -23,11 +23,11 @@ Run
 ```
 make clean
 ```
-to remove the outputs from the makefile.
+to remove outputs created by the makefile.
 
 ## How to Run
 In a terminal, execute
 ```
 ./th-lookup input1.txt input2.txt ... input9.txt output.txt
 ```
-The program can take up to 9 input files, and 1 output file.
+The program can take up to 9 input files, and 1 output file. The output file must always be the last argument.
