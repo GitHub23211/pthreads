@@ -1,7 +1,7 @@
 # COMP2291 Assignment 1
 Joshua Santos, 45203083
 
-Simple program that uses multiple threads to perform DNS lookups to resolve webistes to IP addresses.
+Simple program that uses multiple threads to perform DNS lookups to resolve websites to IP addresses.
 
 ## Required Files
 * th-lookup.c
