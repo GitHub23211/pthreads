@@ -5,6 +5,9 @@ OBJ = th-lookup.o queue.o util.o
 
 .PHONY: clean
 
+%.o: %.c $(DEPS)
+	$(CC) -c -o $@ $<
+
 th-lookup: $(OBJ) $(DEPS)
 	$(CC) $(CFLAGS) $^ -o $@
 
