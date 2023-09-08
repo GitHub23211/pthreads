@@ -26,8 +26,14 @@ make clean
 to remove outputs created by the makefile (.o files and executables).
 
 ## How to Run
-In a terminal, execute
+In a terminal:
 ```
 ./th-lookup input1.txt input2.txt ... input9.txt output.txt
 ```
-The program can take up to 9 input files, and 1 output file. The output file must always be the last argument.
+The program can take up to 10 input files, and 1 output file. The output file must always be the last argument.
+
+## Modifying Queue Size and Number of Resolver Threads
+Adjust the following defined constants in th-lookup.h:
+* ```QUEUESIZE```: Maximum number of items in the queue at any given time.
+* ```MAX_RESOLVER_THREADS```: Number of resolver threads to create.
+By default, these are set to 100 and 10 respectively.

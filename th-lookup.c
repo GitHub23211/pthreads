@@ -23,15 +23,16 @@ int req_count;
 int main(int argc, char** argv) {
 
     /* Error checking before initialising variables */
+    /* Check for correct number of arguments */
     if(argc < MIN_ARGS) {
         fprintf(stderr, 
-            "ERROR: Not enough arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 9 input files, and 1 output file\n"
+            "ERROR: Not enough arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 10 input files, and 1 output file\n"
             ,argc - 1);
         exit(1);
     }
     else if(argc > MAX_ARGS) {
         fprintf(stderr, 
-            "ERROR: Too many arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 9 input files, and 1 output file\n"
+            "ERROR: Too many arguments. Arguments: %d \nUSAGE: ./th-lookup <input-files> <output-file>\n\tTakes up to 10 input files, and 1 output file\n"
             ,argc - 1);
         exit(1);
     }
@@ -39,7 +40,7 @@ int main(int argc, char** argv) {
     /* Check for valid output file */
     FILE* output = fopen(argv[argc-1], "w");
     if(!output) {
-        fprintf(stderr, "ERROR: Cannot access output file\n");
+        fprintf(stderr, "ERROR: Cannot find or access output file\n");
         exit(1);
     }
 
@@ -62,27 +63,26 @@ int main(int argc, char** argv) {
     queue_init(&q, QUEUESIZE);
 
     /* Initialise one requester thread per input file*/
-    int t = 0;
+    int thread_count = 0;
     for(int i = 1; i <= num_input; i++) {
-        input_files[t] = fopen(argv[i], "r");
-        if(input_files[t]) {
-            printf("Creating requester threads: %d\n", t);
-            int err = pthread_create(&(requesters[t]), NULL, request, input_files[t]);
+        input_files[thread_count] = fopen(argv[i], "r");
+        if(input_files[thread_count]) {
+            int err = pthread_create(&(requesters[thread_count]), NULL, request, input_files[thread_count]);
             if (err){
                 printf("ERROR; return code from pthread_create() is %d\n", err);
                 exit(2);
             }
-            t++;
+            thread_count++;
         }
         else {
              fprintf(stderr, "ERROR: Cannot find or access input file: %s. Continuing...\n", argv[i]);
         }
     }
 
-    if(t > 0) {
+    /* Check if any requester threads were created */
+    if(thread_count > 0) {
         /* Initialise all resolver threads */
         for(int j = 0; j < MAX_RESOLVER_THREADS; j++) {
-            printf("Creating resolver threads: %d\n", j);
             int err = pthread_create(&(resolvers[j]), NULL, resolve, (void*)output);
             if (err){
                 printf("ERROR; return code from pthread_create() is %d\n", err);
@@ -91,21 +91,22 @@ int main(int argc, char** argv) {
         }
 
         /* Join threads */
-        for(int i = 0; i < t; i++){
+        for(int i = 0; i < thread_count; i++){
             pthread_join(requesters[i],NULL);
         }
         for(int j = 0; j < MAX_RESOLVER_THREADS; j++){
             pthread_join(resolvers[j],NULL);
         }
         printf("All threads completed! Counter is: %d\n", counter);
+        fclose(output);
     }
     else {
-        fprintf(stderr, "ERROR: No valid input files. Program did not run. Cleaning up initialised variables...\n");        
+        /* No requester threads were created. */
+        fprintf(stderr, "ERROR: No valid input files. Program did not run. Shutting down\n");        
     }
 
     /* Clean up */
     queue_cleanup(&q);
-    fclose(output);
     sem_destroy(&q_sem);
     sem_destroy(&c_sem);
     sem_destroy(&w_sem);
@@ -113,11 +114,13 @@ int main(int argc, char** argv) {
     return 0;
 }
 
+/** User-defined Functions */
+
 void* request(void* input) {
     char buffer[SBUFSIZE];
     FILE* ifp = (FILE*)input;
 
-    tsafe_add_pusher();
+    tsafe_add_requester();
     while(!feof(ifp)) {
         int res = fscanf(ifp, INPUTFS, buffer);
         if(res >= 0) {
@@ -127,17 +130,27 @@ void* request(void* input) {
             }
         }
     }
+    
     fclose(ifp);
-    tsafe_decerement_pusher();
+    tsafe_remove_requester();
     return NULL;
 }
 
 void* resolve(void* output) {
+    char firstipstr[INET6_ADDRSTRLEN];
     char* temp;
     FILE* ofp = (FILE*)output;
-    char firstipstr[INET6_ADDRSTRLEN];
 
+    /* 
+     * Checks if there are items in the queue, 
+     * or there are requester threads still pushing to the queue
+     */
     while((temp = tsafe_queue_pop(&q)) != NULL|| req_count > 0) {
+        /* 
+         * Might be the case that while requester threads still exist,
+         * there are no items in the queue. This will return NULL for temp.
+         * Need to check for this.
+         */
         if(temp) {
             if(dnslookup(temp, firstipstr, sizeof(firstipstr)) == UTIL_FAILURE) {
                 fprintf(stderr, "dnslookup error: %s\n", temp);
@@ -151,9 +164,12 @@ void* resolve(void* output) {
             free(temp);  
         }
     }
+    
     temp = NULL;
     return NULL;
 }
+
+/** Thread-safe functions */
 
 int tsafe_queue_push(queue* q, void* p) {
     sem_wait(&q_sem);
@@ -175,13 +191,13 @@ void tsafe_increment() {
     sem_post(&c_sem);
 }
 
-void tsafe_add_pusher() {
+void tsafe_add_requester() {
     sem_wait(&req_sem);
     req_count++;
     sem_post(&req_sem);
 }
 
-void tsafe_decerement_pusher() {
+void tsafe_remove_requester() {
     sem_wait(&req_sem);
     req_count--;
     sem_post(&req_sem);
